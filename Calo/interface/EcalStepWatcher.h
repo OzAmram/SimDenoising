@@ -34,7 +34,7 @@ class EcalStepWatcher : public SimWatcher,
 		struct SimNtuple {
 			double prim_pt, prim_eta, prim_phi, prim_E;
 			int prim_id;
-			std::vector<double> step_x, step_y, step_z, step_t, step_E, bin_weights;
+			std::vector<double> step_x, step_y, step_z, step_t, step_E, bin_weights, step_E_nonIon;
 		};
 
 	private:
