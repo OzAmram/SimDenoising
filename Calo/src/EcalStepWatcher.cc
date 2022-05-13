@@ -66,8 +66,12 @@ EcalStepWatcher::EcalStepWatcher(const edm::ParameterSet& iConfig)
 		tree_->Branch("step_y" , "vector<double>", &entry_.step_y, 32000, 0);
 		tree_->Branch("step_z" , "vector<double>", &entry_.step_z, 32000, 0);
 		tree_->Branch("step_E" , "vector<double>", &entry_.step_E, 32000, 0);
-		tree_->Branch("step_E_nonIon" , "vector<double>", &entry_.step_E_nonIon, 32000, 0);
 		tree_->Branch("step_t" , "vector<double>", &entry_.step_t, 32000, 0);
+
+        tree_->Branch("t_avg_bin_weights", "vector<double>", &entry_.t_avg_bin_weights, 32000, 0);
+        tree_->Branch("t_Eavg_bin_weights", "vector<double>", &entry_.t_Eavg_bin_weights, 32000, 0);
+        tree_->Branch("t_max_bin_weights", "vector<double>", &entry_.t_max_bin_weights, 32000, 0);
+        tree_->Branch("n_bin_weights", "vector<double>", &entry_.n_bin_weights, 32000, 0);
 	}
     tree_->Branch("bin_weights", "vector<double>", &entry_.bin_weights, 32000, 0);
     tree_->Branch("xbins",&xbins,"xbins/I");
@@ -76,15 +80,31 @@ EcalStepWatcher::EcalStepWatcher(const edm::ParameterSet& iConfig)
     tree_->Branch("xmax",&xmax,"xmax/I");
     tree_->Branch("ymin",&ymin,"ymin/I");
     tree_->Branch("ymax",&ymax,"ymax/I");
-    h2 = new TH2F("h", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
+    h_E = new TH2F("h_E", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
+    h_t_avg = new TH2F("h_t_avg", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
+    h_t_Eavg = new TH2F("h_t_Eavg", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
+    h_t_max = new TH2F("h_t_max", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
+    h_n = new TH2F("h_n", "hist", xbins, xmin, xmax, ybins, ymin, ymax);
 }
 
 void EcalStepWatcher::update(const BeginOfEvent* evt) {  
 	//reset branches
 	entry_ = SimNtuple();
-	if (image_only){
-		h2->Reset("ICESM");
-	}
+	h_E->Reset("ICESM");
+	if (!image_only){
+        h_t_avg->Reset("ICESM");
+        h_t_Eavg->Reset("ICESM");
+        h_t_max->Reset("ICESM");
+        h_n->Reset("ICESM");
+
+        entry_.step_x.clear();
+        entry_.step_y.clear();
+        entry_.step_z.clear();
+        entry_.step_E.clear();
+        entry_.step_E.clear();
+        entry_.step_t.clear();
+    }
+
 
 	//reset random number generator
 	if(reset_random){
@@ -120,14 +140,24 @@ void EcalStepWatcher::update(const G4Step* step) {
 	std::string subname(name.substr(0,4));
 	if(volumes_.find(subname)==volumes_.end()) return;
 	if (!image_only){
+        auto time = step->GetTrack()->GetGlobalTime();
 		entry_.step_x.push_back(hitPoint.x());
 		entry_.step_y.push_back(hitPoint.y());
 		entry_.step_z.push_back(hitPoint.z());
 		entry_.step_E.push_back(step->GetTotalEnergyDeposit()); 
-		entry_.step_E_nonIon.push_back(step->GetNonIonizingEnergyDeposit()); 
-		entry_.step_t.push_back(step->GetTrack()->GetGlobalTime());
+		entry_.step_t.push_back(time);
+
+        h_n->Fill(hitPoint.x(), hitPoint.y(), 1);
+        h_t_avg->Fill(hitPoint.x(), hitPoint.y(), time);
+        h_t_Eavg->Fill(hitPoint.x(), hitPoint.y(), step->GetTotalEnergyDeposit() * time);
+
+        //fill max of t and bin content
+        auto bin = h_t_max->FindBin(hitPoint.x(), hitPoint.y());
+        float cont = h_t_max->GetBinContent(bin);
+        if( time > cont) h_t_max->SetBinContent(bin, time);
+
 	}
-	h2->Fill(hitPoint.x(), hitPoint.y(), step->GetTotalEnergyDeposit());
+	h_E->Fill(hitPoint.x(), hitPoint.y(), step->GetTotalEnergyDeposit());
 }
 
 void EcalStepWatcher::update(const EndOfEvent* evt) {
@@ -144,13 +174,31 @@ void EcalStepWatcher::update(const EndOfEvent* evt) {
 
     // get bin weights from TH2 and store in tree
     Int_t x, y;
-    h2->ClearUnderflowAndOverflow();
+    h_E->ClearUnderflowAndOverflow();
     entry_.bin_weights.reserve(xbins*ybins);
     for (x=1; x <= xbins; x++){
         for (y=1; y <= ybins; y++){
-            entry_.bin_weights.push_back(h2->GetBinContent(x, y));
+            entry_.bin_weights.push_back(h_E->GetBinContent(x, y));
         }
     }
+
+    if(!image_only){
+        entry_.t_avg_bin_weights.reserve(xbins*ybins);
+        entry_.t_Eavg_bin_weights.reserve(xbins*ybins);
+        entry_.t_max_bin_weights.reserve(xbins*ybins);
+        entry_.n_bin_weights.reserve(xbins*ybins);
+        for (x=1; x <= xbins; x++){
+            for (y=1; y <= ybins; y++){
+                if( h_n->GetBinContent(x,y) > 0) entry_.t_avg_bin_weights.push_back(h_t_avg->GetBinContent(x, y) / h_n->GetBinContent(x,y));
+                else  entry_.t_avg_bin_weights.push_back(0.);
+                if( h_E->GetBinContent(x,y) > 0.)  entry_.t_Eavg_bin_weights.push_back(h_t_Eavg->GetBinContent(x, y) / h_E->GetBinContent(x,y));
+                else entry_.t_Eavg_bin_weights.push_back(0.);
+                entry_.t_max_bin_weights.push_back(h_t_max->GetBinContent(x, y));
+                entry_.n_bin_weights.push_back(h_n->GetBinContent(x, y));
+            }
+        }
+    }
+
 
 	//fill tree
 	tree_->Fill();	

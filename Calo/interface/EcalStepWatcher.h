@@ -34,7 +34,7 @@ class EcalStepWatcher : public SimWatcher,
 		struct SimNtuple {
 			double prim_pt, prim_eta, prim_phi, prim_E;
 			int prim_id;
-			std::vector<double> step_x, step_y, step_z, step_t, step_E, bin_weights, step_E_nonIon;
+			std::vector<double> step_x, step_y, step_z, step_t, step_E, bin_weights, t_avg_bin_weights, t_Eavg_bin_weights, t_max_bin_weights, n_bin_weights;
 		};
 
 	private:
@@ -50,7 +50,7 @@ class EcalStepWatcher : public SimWatcher,
 		edm::Service<TFileService> fs_;
 		TTree* tree_;
 		SimNtuple entry_;
-		TH2F * h2;
+		TH2F * h_E, *h_t_avg, *h_t_Eavg, *h_t_max, *h_n;
 		int xbins;
 		int ybins;
 		int xmin;
