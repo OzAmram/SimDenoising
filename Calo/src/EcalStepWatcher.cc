@@ -67,6 +67,13 @@ EcalStepWatcher::EcalStepWatcher(const edm::ParameterSet& iConfig)
 		tree_->Branch("step_z" , "vector<double>", &entry_.step_z, 32000, 0);
 		tree_->Branch("step_E" , "vector<double>", &entry_.step_E, 32000, 0);
 		tree_->Branch("step_t" , "vector<double>", &entry_.step_t, 32000, 0);
+		tree_->Branch("step_length" , "vector<double>", &entry_.step_length, 32000, 0);
+		tree_->Branch("delta_t" , "vector<double>", &entry_.delta_t, 32000, 0);
+		tree_->Branch("delta_px" , "vector<double>", &entry_.delta_px, 32000, 0);
+		tree_->Branch("delta_py" , "vector<double>", &entry_.delta_py, 32000, 0);
+		tree_->Branch("delta_pz" , "vector<double>", &entry_.delta_pz, 32000, 0);
+        tree_->Branch("trk_creator_model", "vector<int>", &entry_.trk_creator_model, 32000, 0);
+        //tree_->Branch("trk_material", "vector<std::string>", &entry_.trk_material, 32000, 0);
 
         tree_->Branch("t_avg_bin_weights", "vector<double>", &entry_.t_avg_bin_weights, 32000, 0);
         tree_->Branch("t_Eavg_bin_weights", "vector<double>", &entry_.t_Eavg_bin_weights, 32000, 0);
@@ -103,6 +110,14 @@ void EcalStepWatcher::update(const BeginOfEvent* evt) {
         entry_.step_E.clear();
         entry_.step_E.clear();
         entry_.step_t.clear();
+
+        entry_.step_length.clear();
+        entry_.delta_px.clear();
+        entry_.delta_py.clear();
+        entry_.delta_pz.clear();
+        entry_.delta_t.clear();
+        entry_.trk_creator_model.clear();
+        entry_.trk_material.clear();
     }
 
 
@@ -146,6 +161,14 @@ void EcalStepWatcher::update(const G4Step* step) {
 		entry_.step_z.push_back(hitPoint.z());
 		entry_.step_E.push_back(step->GetTotalEnergyDeposit()); 
 		entry_.step_t.push_back(time);
+
+        entry_.delta_t.push_back(step->GetDeltaTime());
+        entry_.delta_px.push_back(step->GetDeltaMomentum().x());
+        entry_.delta_py.push_back(step->GetDeltaMomentum().y());
+        entry_.delta_pz.push_back(step->GetDeltaMomentum().z());
+        entry_.step_length.push_back(step->GetStepLength());
+        entry_.trk_creator_model.push_back(step->GetTrack()->GetCreatorModelID());
+        entry_.trk_material.push_back(step->GetTrack()->GetMaterial()->GetName());
 
         h_n->Fill(hitPoint.x(), hitPoint.y(), 1);
         h_t_avg->Fill(hitPoint.x(), hitPoint.y(), time);
